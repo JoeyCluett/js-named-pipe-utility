@@ -1,0 +1,300 @@
+
+ALU Operations, reading/writing to/from the ALU
+	Ops to load ALU registers from GP register and save to GP Register from Accumulator
+	Perform Arithmetic/Logic Operations on ALU Registers
+    
+Stack Operations, Multiple Function Calls
+	PUSH and POP data to arbitrary GP Register
+    
+Communication Between RAM and Registers
+	
+IO Operations - Read and Write
+	IO is 16 bits accessible in 8-bit chunks
+    
+-------------------------------------------------------------------------------------------------
+	
+0x0: Load ALU Register A/B
+0x1: Save Accumulator to GP Register
+0x2: Load/Save GP Register
+0x3: ALU Operation, Save to Accumulator
+0x4: PUSH/POP GP Register
+0x5: Absolute Jump
+0x6: Conditional Jump (Relative Jump)
+0x7: 
+0x8: Set Stack Pointer
+0x9: Jump to Subroutine
+0xA: Return from Subroutine
+0xB: Read GPIO
+0xC: Write GPIO
+0xD: 
+0xE: 
+0xF: Special CPU Functions
+	
+-------------------------------------------------------------------------------------------------
+	
+x7 x6 x5 x4 x3 x2 x1 x0. x7 through x4 are the opcode, x3 through x0 are information included in opcode byte (sometimes this space contains nothing useful)  
+
+Instruction Set v3.0
+
+0x0, Load ALU Register A/B
+
+	size: 1 byte
+
+    mnemonic: lda, ldb
+
+    usage: lda <reg # 0-7>, ldb <reg # 0-7>
+
+    machine code notes: 
+        x3 of opcode byte determines which ALU register will be written to.
+        if x3 is 0, instruction writes to register A
+        if x3 is 1, instruction writes to register B
+        x2, x1, x0 are binary encoding of which GP register you want to read from
+
+0x1, Save Accumulator to GP Register
+
+	size: 1 byte
+
+	mnemonic: savacc
+
+	usage: savacc <reg # 0-7>
+
+	machine code notes:
+		x3 determines if accumulator is inverted before saving
+		if x3 is 1, accumulator is inverted before saving.
+		if x3 is 0, accumulator is not inverted before saving.
+		x2, x1, x0 are binary encoding of which GP register you want to write to
+
+0x2, Load/Save GP register
+
+	size: 3 bytes
+
+	mnemonic: ldr, savr
+
+	usage: ldr <reg # 0-7> <absolute address>, savr <reg # 0-7> <absolute address>
+
+	machine code notes:
+		x3 determines whether this instruction writes to registers or reads from registers to RAM
+		if x3 is 0, instruction writes to GP register from RAM
+		if x3 is 1, instruction writes to RAM from GP register
+		x2, x1, x0 is binary encoding of which GP register is acted upon either reading or writing	
+		Two bytes following opcode byte are absolute address, MSB first
+
+0x3, ALU Operation, Save to Accumulator
+
+	size: 1 byte
+
+	mnemonic: (See ALU Operation Note below)
+
+	usage: (See ALU Operation Note below)
+
+	machine code notes:
+		x3, x2, x1, x0 of opcode byte are encoding of which operation you want to perform
+		Result always saves to accumulator
+		Subtraction is done in One's Complement
+
+0x4, PUSH/POP GP register
+	
+	size: 1 byte
+
+	mnemonic: push, pop
+
+	usage: push <reg # 0-7>, pop <reg # 0-7>
+
+	machine code notes:
+		x3 determines whether this instruction pushes a value onto the stack or pops one off of the stack
+		if x3 is 0, this instruction PUSHes
+		if x3 is 1, this instruction POPs
+
+0x5, Absolute/Unconditional Jump
+
+	size: 3 bytes
+
+	mnemonic: goto
+
+	usage: goto <absolute address>
+
+	machine code notes:
+		x3 - x0 in the opcode byte do nothing
+		Two bytes following opcode byte are absolute address to jump to, MSB first
+
+0x6, Conditional Jump
+
+	size: 2 bytes
+
+	mnemonic: jumpif
+
+	usage: jumpif <condition> <relative jump distance if test fails>
+
+	machine code notes:
+		x3 - x0 is encoding of condition to test for
+		Byte following opcode byte is relative distance to jump if condition fails
+
+0x7, Move Bytes
+
+	size: 3 bytes
+
+	mnemonic: movr, movm
+
+	usage: movr <address of 8-byte memory block to move into registers>, movm <address of 8-byte memory block to write register data into>
+
+	machine code notes:
+		x3 - x0 are or'ed together. If result is not zero, instruction is movr, else instruction is movm
+		In both cases, the two bytes following the opcode byte is the absolute address of the 8-byte block
+		to move data to/from, MSB first	
+
+0x8, Set Stack Pointer
+
+	size: 3 bytes
+
+	mnemonic: ssp
+
+	usage: ssp (address to start stack at)
+
+	machine code notes:
+		x3 - x0 has no meaning
+		Two bytes following opcode byte are address to start stack at	
+
+0x9, Jump to Subroutine
+
+	size: 3 bytes
+
+	mnemonic: gosub
+
+	usage: gosub (address to jump to after saving return address)
+
+	machine code notes:
+		x3 - x0 in opcode byte has no meaning.
+		Two bytes following opcode byte are address to jump to after saving return address, MSB first
+		Ideally this would be a function.
+		Return address is address of opcode byte + 3
+
+0xA, Return from Subroutine
+
+	size: 1 byte
+
+	mnemonic: ret
+
+	usage: ret
+
+	machine code notes:
+		x3 - x0 in opcode byte has no meaning.
+		This instruction simply pops a value off of the address stack and jumps to that location
+		Works in conjunction with gosub to complete function calls
+
+0xB, Read GPIO
+
+	size: 1 byte
+	
+	mnemonic: rio
+
+	usage: rio (which byte to read from) (register to store read data in)
+
+	machine code notes:
+		x3 determines which GPIO byte is read from
+		if x3 is 0, GPIO byte 0 (LSB) is read from
+		if x3 is 1, GPIO byte 1 (MSB) is read from
+		x2, x1, x0 is encoding of register address to store read data at
+
+0xC, Write GPIO
+
+	size: 1 byte
+
+	mnemonic: wio
+
+	usage: wio (which byte to write to) (register to read data from)
+
+	machine code notes:
+		x3 determines which GPIO byte is written to
+		if x3 is 0, GPIO byte 0 (LSB) is written to
+		if x3 is 1, GPIO byte 1 (MSB) is written to
+		x2, x1, x0 is encoding of register address to read from
+
+0xD, 
+
+0xE, 
+
+0xF, Special CPU Functions
+	Note: Special CPU Functions can't have any arguments. Every instruction in this group has 
+		either no operands or implicit operands.	
+
+	0x0 : Halt
+		halt
+	0x1 : Read Next 8 Bytes into GP Registers starting with r0
+		nextr
+	0x2 : Write GP Registers into Next 8 Memory Locations starting with r0
+		nextm
+	0x3 : No-operation
+		nop
+	0x4 : Write Block to Screen starting at Address given by following 2 bytes, MSB first, this instruction utilizes the address stack
+		wscr	
+	0x5 : Read keyboard input, x2 - x0 of next byte is encoding of which register to use to store keyboard data
+		rkey
+
+----------------------------------------------------------------------------------------------------------
+	
+ALU Operation Note:
+
+	All results are saved to the Accumulator
+
+	Hex encoding of ALU operations are:
+
+	0x0, asubb  : A - B
+	0x1, bsuba  : B - A
+	0x2, add    : A + B 
+	0x3, or     : A or B
+	0x4, nor    : A nor B
+	0x5, and    : A and B
+	0x6, nand   : A nand B
+	0x7, xor    : A xor B
+	0x8, xnor   : A xnor B
+	0x9, addci  : A + B w/ Ci
+	0xA, addco  : A + B w/ Co
+	0xB, addall : A + B w/ Ci, w/ Co
+	0xC, cmp    : Compare
+	0xD, NCD    : NCD
+	0xE, NCD    : Invert Flags (nvrtf)
+	0xF, clf    : Clear Flags (clf)
+
+	//0x9, 0xA, 0xB allow addition on multiple byte numbers
+	*NCD: Not Currently Defined
+
+List of all assembly mnemonics:
+
+	lda
+	ldb
+	savacc
+	ldr
+	savr
+	asubb
+	bsuba
+	add
+	or
+	nor
+	and
+	nand
+	xor
+	xnor
+	addci
+	addco
+	addall
+	nvrtf
+	clf
+	push
+	pop
+	goto
+	jumpif
+	movr
+	movm
+	ssp
+	gosub
+	ret
+	rio
+	wio
+	halt
+	nextr
+	nextm
+	nop
+	wscr
+
+
+
